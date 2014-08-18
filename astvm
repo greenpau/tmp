@@ -1,0 +1,36 @@
+#!/bin/bash
+
+ASTVM_DIR=/var/spool/asterisk/voicemail/default/2121112222/INBOX
+ASTVM_MAIL=paul@gmail.com
+
+ASTVM_EMPTY=$((`find ${ASTVM_DIR} -type f | grep txt | wc -l`))
+if (( ${ASTVM_EMPTY} < 1 )); then
+ exit 0;
+fi
+
+for AFILE in ${ASTVM_DIR}/*.txt; do
+ TODO=$((`cat ${AFILE} | grep ";mailed" | wc -l`))
+ if (( ${TODO} < 1 )); then
+  #echo "Processing ${AFILE} file... $TODO";
+  TDIR=`dirname ${AFILE}`
+  TTXT=`basename ${AFILE}`
+  TWAV=`basename ${AFILE} | sed 's/.txt/.wav/'`
+  TMBX=/tmp/asterisk-vm-`uuid`
+  TSBJ="Voicemail from "`cat ${AFILE} | grep "callerid" | tr '\n' ' ' | sed 's/callerid=//'`
+  # echo ${TDIR}
+  # echo ${TTXT}
+  # echo ${TWAV}
+  # echo ${TMBX}
+  # echo ${TSBJ}
+  cat ${AFILE} | env MAILRC=/dev/null mailx -r "${ASTVM_MAIL}" \
+   -s "${TSBJ}" -a ${TDIR}/${TWAV} -S hostname=anonymous -S record=${TMBX} ${ASTVM_MAIL}
+  #echo $?;
+  cat ${TMBX} | /usr/sbin/ssmtp -C ~/.ssmtp.conf -t
+  #echo $?;
+  echo >> ${AFILE}
+  echo ";mailed" >> ${AFILE}
+  rm -rf ${TMBX}
+  unset TDIR TTXT TWAV TMBX TSBJ
+ fi
+ unset TODO
+done
